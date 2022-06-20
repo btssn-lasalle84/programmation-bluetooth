@@ -1,53 +1,19 @@
-#include <QApplication>
-#include <QObject>
-#include <QtBluetooth>
-#include <QString>
-#include <QByteArray>
-#include <QList>
-#include <QVector>
+#include "serveur-bluetooth.h"
 #include <QDebug>
 
-static const QString serviceUuid(
-  QStringLiteral("0000110a-0000-1000-8000-00805f9b34fb"));
-
-class ServeurBluetooth : public QObject
-{
-    Q_OBJECT
-  private:
-    QBluetoothServer*          serveur;
-    QVector<QBluetoothSocket*> sockets;
-    QBluetoothLocalDevice      peripheriqueLocal;
-    QBluetoothServiceInfo      serviceInfo;
-    QList<QBluetoothAddress>   peripheriquesDistants;
-    QByteArray                 trame;
-
-  public:
-    ServeurBluetooth(QObject* parent = nullptr);
-    ~ServeurBluetooth();
-    void activerBluetooth();
-    void desactiverBluetooth();
-    void demarrer();
-    void arreter();
-
-  public slots:
-    void gererClient();
-    void deconnecterSocket();
-    void lireSocket();
-    void changerEtatSocket(QBluetoothSocket::SocketState etat);
-    void renvoyerErreurSocket(QBluetoothSocket::SocketError erreur);
-    void renvoyerErreurDevice(QBluetoothLocalDevice::Error erreur);
-
-  signals:
-    void clientConnecte(QString nom, QString adresse);
-    void clientDeconnecte(QString nomModule);
-};
-
 ServeurBluetooth::ServeurBluetooth(QObject* parent) :
-    QObject(parent), serveur(nullptr), peripheriqueLocal(), serviceInfo()
+    QObject(parent), serveur(nullptr), sockets(NB_CLIENTS_MAX, nullptr), peripheriqueLocal(), serviceInfo()
 {
     qDebug() << Q_FUNC_INFO;
     activerBluetooth();
     demarrer();
+}
+
+ServeurBluetooth::~ServeurBluetooth()
+{
+    arreter();
+    desactiverBluetooth();
+    qDebug() << Q_FUNC_INFO;
 }
 
 void ServeurBluetooth::activerBluetooth()
@@ -116,18 +82,104 @@ void ServeurBluetooth::arreter()
             if(sockets.at(i)->isOpen())
             {
                 sockets.at(i)->close();
-            }
-            delete this->serveur;
-            delete sockets.at(i);
-            this->serveur = nullptr;
+            }            
+            delete sockets.at(i);            
             sockets[i]    = nullptr;
+        }
+    }
+    delete this->serveur;
+    this->serveur = nullptr;
+}
+
+void ServeurBluetooth::gererClient()
+{
+    QBluetoothSocket* socket = this->serveur->nextPendingConnection();
+    if(!socket)
+    {
+        return;
+    }
+    // nouveau client
+    qDebug() << Q_FUNC_INFO << socket->peerName()
+             << socket->peerAddress().toString();
+    for(int i = 0; i < sockets.size(); ++i)
+    {
+        if(sockets.at(i) == nullptr)
+        {
+            qDebug() << Q_FUNC_INFO << socket << "i" << i;
+            sockets[i] = socket;
+            connect(socket,
+                    SIGNAL(disconnected()),
+                    this,
+                    SLOT(deconnecterSocket()));
+            connect(socket, SIGNAL(readyRead()), this, SLOT(lireSocket()));
+            connect(socket,
+                    SIGNAL(error(QBluetoothSocket::SocketError)),
+                    this,
+                    SLOT(renvoyerErreurSocket(QBluetoothSocket::SocketError)));
+            connect(socket,
+                    SIGNAL(stateChanged(QBluetoothSocket::SocketState)),
+                    this,
+                    SLOT(changerEtatSocket(QBluetoothSocket::SocketState)));
+            return;
         }
     }
 }
 
-int main(int argc, char* argv[])
+int ServeurBluetooth::recupererNumeroSocket(QBluetoothSocket* socket) const
 {
-    QApplication a(argc, argv);
+    if(socket == nullptr)
+        return -1;
+    for(int i = 0; i < sockets.size(); ++i)
+    {
+        if(sockets.at(i) == socket)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
 
-    return a.exec();
+void ServeurBluetooth::deconnecterSocket()
+{
+    QBluetoothSocket* socket      = qobject_cast<QBluetoothSocket*>(sender());
+    int               numeroSocket = recupererNumeroSocket(socket);
+    if(numeroSocket != -1)
+    {
+        qDebug() << Q_FUNC_INFO << numeroSocket << socket << socket->peerName()
+                 << socket->peerAddress().toString() << socket->state();
+        delete sockets[numeroSocket];
+        sockets[numeroSocket] = nullptr;
+    }
+}
+
+void ServeurBluetooth::lireSocket()
+{
+    QBluetoothSocket* socket = qobject_cast<QBluetoothSocket*>(sender());
+    int               numeroSocket = recupererNumeroSocket(socket);
+    if(numeroSocket != -1)
+    {
+        qDebug() << Q_FUNC_INFO << socket->peerName()
+                 << socket->peerAddress().toString();
+        trames[numeroSocket] += socket->readAll();
+        if(trames[numeroSocket].endsWith("\r\n") || trames[numeroSocket].endsWith("\r") || trames[numeroSocket].endsWith("\n"))
+        {
+            qDebug() << Q_FUNC_INFO << trames[numeroSocket];
+            trames[numeroSocket].clear();
+        }
+    }
+}
+
+void ServeurBluetooth::changerEtatSocket(QBluetoothSocket::SocketState etat)
+{
+    qDebug() << Q_FUNC_INFO << etat;
+}
+
+void ServeurBluetooth::renvoyerErreurSocket(QBluetoothSocket::SocketError erreur)
+{
+    qDebug() << Q_FUNC_INFO << erreur;
+}
+
+void ServeurBluetooth::renvoyerErreurDevice(QBluetoothLocalDevice::Error erreur)
+{
+    qDebug() << Q_FUNC_INFO << erreur;
 }

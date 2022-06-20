@@ -20,8 +20,9 @@ int main(int argc, char** argv)
     int         socketServeur;
     int         retour;
     char        buffer[1024] = { 0 };
+    //const char* adresseMacDistante = "84:0D:8E:37:84:1E"; /* par exemple un ESP32 "84:0D:8E:37:84:1E" */
     const char* adresseMacDistante =
-      "B8:27:EB:B1:1A:12"; //"84:0D:8E:37:84:1E"; /* par exemple un ESP32 */
+      "00:1A:7D:DA:71:15"; /* par exemple un dongle "00:1A:7D:DA:71:15" ou un tablette "B8:27:EB:B1:1A:12" */
     uint8_t port = 1;
 
     // Crée une socket pour se connecter à un serveur
