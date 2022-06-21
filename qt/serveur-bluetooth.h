@@ -6,44 +6,43 @@
 #include <QString>
 #include <QByteArray>
 #include <QList>
-#include <QVector>
+#include <QMap>
 
+/*static const QString serviceUuid(
+  QStringLiteral("0000110a-0000-1000-8000-00805f9b34fb"));*/
 static const QString serviceUuid(
-  QStringLiteral("0000110a-0000-1000-8000-00805f9b34fb"));
+  QStringLiteral("00001101-0000-1000-8000-00805f9b34fb"));
 
 class ServeurBluetooth : public QObject
 {
     Q_OBJECT
   private:
-    const int NB_CLIENTS_MAX   = 2; 
-    QBluetoothServer*          serveur;
-    QVector<QBluetoothSocket*> sockets;
-    QBluetoothLocalDevice      peripheriqueLocal;
-    QBluetoothServiceInfo      serviceInfo;
-    QList<QBluetoothAddress>   peripheriquesDistants;
-    QVector<QByteArray>        trames;
+    QBluetoothServer*                serveur;
+    QMap<QString, QBluetoothSocket*> sockets;
+    QBluetoothLocalDevice            peripheriqueLocal;
+    QBluetoothServiceInfo            serviceInfo;
+    QList<QBluetoothAddress>         peripheriquesDistants;
+    QMap<QString, QByteArray>        trames;
 
-    int recupererNumeroSocket(QBluetoothSocket* socket) const;
+    void    activerBluetooth();
+    void    desactiverBluetooth();
+    QString recupererAdresseMAC(QBluetoothSocket* socket) const;
 
   public:
     ServeurBluetooth(QObject* parent = nullptr);
     ~ServeurBluetooth();
-    void activerBluetooth();
-    void desactiverBluetooth();
     void demarrer();
     void arreter();
 
-  public slots:
-    void gererClient();
+  private slots:
+    void gererNouveauClient();
     void deconnecterSocket();
-    void lireSocket();
-    void changerEtatSocket(QBluetoothSocket::SocketState etat);
-    void renvoyerErreurSocket(QBluetoothSocket::SocketError erreur);
-    void renvoyerErreurDevice(QBluetoothLocalDevice::Error erreur);
+    void lireDonneesSocket();
+    void lireChangementEtatSocket(QBluetoothSocket::SocketState etat);
+    void lireErreurSocket(QBluetoothSocket::SocketError erreur);
+    void lireErreurDevice(QBluetoothLocalDevice::Error erreur);
 
   signals:
-    void clientConnecte(QString nom, QString adresse);
-    void clientDeconnecte(QString nomModule);
 };
 
-#endif //SERVEUR_BLUETOOTH_H
+#endif // SERVEUR_BLUETOOTH_H

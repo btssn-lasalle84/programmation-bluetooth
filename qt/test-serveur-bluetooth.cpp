@@ -3,8 +3,10 @@
 
 int main(int argc, char* argv[])
 {
-    QApplication a(argc, argv);
-    ServeurBluetooth s;
+    QApplication     a(argc, argv);
+    ServeurBluetooth serveurBluetooth;
+
+    serveurBluetooth.demarrer();
 
     return a.exec();
 }
