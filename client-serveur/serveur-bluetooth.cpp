@@ -10,53 +10,62 @@
 #include <bluetooth/sco.h>
 #include <bluetooth/sdp_lib.h>
 
-// g++ serveur-bluetooth.cpp -lbluetooth -o serveur-bluetooth
+// g++ -o serveur-bluetooth.out serveur-bluetooth.cpp -lbluetooth
 
 sdp_session_t* register_service(uint8_t rfcomm_channel);
 
 int main(int argc, char** argv)
 {
-    struct sockaddr_rc adaptateurLocalBluetooth = {
-        0
-    }; /* adaptateur local bluetooth */
-    struct sockaddr_rc adatateurDistantBluetooth = {
-        0
-    }; /* le client bluetooth */
-    int         socketEcoute, socketClient;
-    socklen_t   longueurAdresseSocket = sizeof(adatateurDistantBluetooth);
-    char        buffer[1024]          = { 0 };
-    const char* adresseMacLocale = "00:1A:7D:DA:71:13"; //"00:1a:7d:da:71:13";
-    bdaddr_t    my_bdaddr_any    = { 0, 0, 0, 0, 0, 0 };
-    char        adresseMacClient[24] = { 0 };
+    /* l'adaptateur local bluetooth */
+    struct sockaddr_rc adaptateurLocalBluetooth = { 0 };
+    /* le client bluetooth */
+    struct sockaddr_rc adatateurDistantBluetooth = { 0 };
+    int                socketEcoute, socketClient;
+    socklen_t longueurAdresseSocket = sizeof(adatateurDistantBluetooth);
+    char      buffer[1024]          = { 0 };
+    // const char* adresseMacLocale = "00:1A:7D:DA:71:13";
+    char*    adresseMacLocale;
+    bdaddr_t my_bdaddr_any        = { 0, 0, 0, 0, 0, 0 };
+    char     adresseMacClient[24] = { 0 };
 
     int            port    = 1;
     sdp_session_t* session = register_service(port);
 
-    std::cout << "Adresse MAC serveur : " << adresseMacLocale << std::endl;
+    if(argc > 2)
+    {
+        std::cout << "Usage : " << argv[0] << " [xx:xx:xx:xx:xx:xx]"
+                  << std::endl;
+        return 1;
+    }
+    else if(argc == 2)
+    {
+        adresseMacLocale = new char[strlen(argv[1]) + 1];
+        strcpy(adresseMacLocale, argv[1]);
+        str2ba(adresseMacLocale, &adaptateurLocalBluetooth.rc_bdaddr);
+        std::cout << "Adresse MAC serveur : " << adresseMacLocale << std::endl;
+    }
+    else
+    {
+        bacpy(&adaptateurLocalBluetooth.rc_bdaddr, &my_bdaddr_any);
+    }
 
     // Crée une socket pour accepter les demandes de connexion
     socketEcoute = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
-
-    if(socketEcoute < 0)
+    if(socketEcoute == -1)
     {
         perror("socket");
-        return 1;
+        return 2;
     }
 
     // Lie la socket à l'adaptateur local
-    adaptateurLocalBluetooth.rc_family = AF_BLUETOOTH;
-    // bacpy(&adaptateurLocalBluetooth.rc_bdaddr, &my_bdaddr_any); /* adaptateur
-    // local bluetooth */
-    //  ou :
-    str2ba(adresseMacLocale, &adaptateurLocalBluetooth.rc_bdaddr);
-    adaptateurLocalBluetooth.rc_channel =
-      htobs((uint8_t)port); /* i.e. numéro de port */
+    adaptateurLocalBluetooth.rc_family  = AF_BLUETOOTH;
+    adaptateurLocalBluetooth.rc_channel = htobs((uint8_t)port);
     if(bind(socketEcoute,
             (struct sockaddr*)&adaptateurLocalBluetooth,
             sizeof(adaptateurLocalBluetooth)) == -1)
     {
         perror("bind");
-        return 2;
+        return 3;
     }
 
     // Prépare la socket à écouter les demandes de connexion (appel non
@@ -64,11 +73,11 @@ int main(int argc, char** argv)
     if(listen(socketEcoute, 1) == -1)
     {
         perror("listen");
-        return 3;
+        return 4;
     }
 
     // Attente de connexion d'un client (appel bloquant)
-    std::cout << "Attente de demande connexion ..." << std::endl;
+    std::cout << "Attente de demande de connexion ..." << std::endl;
     socketClient = accept(socketEcoute,
                           (struct sockaddr*)&adatateurDistantBluetooth,
                           &longueurAdresseSocket);
@@ -84,16 +93,17 @@ int main(int argc, char** argv)
     switch(nbLus)
     {
         case -1: /* une erreur ! */
-            perror("read");
+            perror("read/recv");
             close(socketClient);
             close(socketEcoute);
-            return 4;
+            return 5;
         case 0: /* la socket est fermée */
             std::cerr << "La socket a été fermée par le client !\n";
             close(socketClient);
             close(socketEcoute);
-            return 0;
+            return 6;
         default: /* réception de n octets */
+            buffer[nbLus] = '\0';
             std::cout << "Message " << buffer << " reçu avec succès"
                       << std::endl;
     }
@@ -105,15 +115,15 @@ int main(int argc, char** argv)
     switch(nbEcrits)
     {
         case -1: /* une erreur ! */
-            perror("write");
+            perror("write/send");
             close(socketClient);
             close(socketEcoute);
-            return 5;
+            return 7;
         case 0: /* la socket est fermée */
             std::cerr << "La socket a été fermée par le client !\n";
             close(socketClient);
             close(socketEcoute);
-            return 0;
+            return 8;
         default: /* envoi de n octets */
             std::cout << "Message " << buffer << " envoyé avec succès"
                       << std::endl;
@@ -130,6 +140,7 @@ int main(int argc, char** argv)
 sdp_session_t* register_service(uint8_t rfcomm_channel)
 {
     // Adapted from http://www.btessentials.com/examples/bluez/sdp-register.c
+    // 0000110a-0000-1000-8000-00805f9b34fb
     uint32_t    svc_uuid_int[] = { 0x00001101,
                                    0x00001000,
                                    0x80000080,
