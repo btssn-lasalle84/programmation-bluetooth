@@ -2,6 +2,23 @@
 
 Ce document fournit quelques connaissances de base pour programmer une communication Bluetooth sous GNU/Linux.
 
+- [Programmation Bluetooth](#programmation-bluetooth)
+  - [Bluez](#bluez)
+  - [Pré-requis](#pré-requis)
+  - [Mise en oeuvre](#mise-en-oeuvre)
+  - [Appairer un appareil](#appairer-un-appareil)
+  - [Notions de Bluetooth](#notions-de-bluetooth)
+  - [Notions de socket](#notions-de-socket)
+  - [Notions de client/serveur](#notions-de-clientserveur)
+  - [Créer un(e) socket](#créer-une-socket)
+  - [L'adressage socket](#ladressage-socket)
+    - [Côté serveur](#côté-serveur)
+    - [Côté client](#côté-client)
+  - [Exemples client/serveur](#exemples-clientserveur)
+    - [C/C++](#cc)
+    - [Qt](#qt)
+  - [Voir aussi](#voir-aussi)
+
 ## Bluez
 
 **BlueZ** est un logiciel qui met en œuvre la technologie sans fil Bluetooth sur le système d'exploitation GNU/Linux. BlueZ est maintenant la mise en œuvre Bluetooth de référence pour GNU/Linux et a été intégré au noyau Linux.
@@ -69,6 +86,12 @@ Les plus utiles :
 - `rfcomm` est utilisé pour configurer, maintenir et inspecter la configuration RFCOMM du sous-système Bluetooth dans le noyau Linux
 - `sdptool` permet d’effectuer des requêtes SDP sur les périphériques Bluetooth
 - `hcidump` lit et affiche les données HCI brutes d’une communication Bluetooth
+
+Pour Qt :
+
+```sh
+$ sudo apt-get install libbluetooth-dev qtconnectivity5-dev
+```
 
 ## Mise en oeuvre
 
@@ -189,6 +212,8 @@ $ sudo ls -l /proc/*/fd | grep 44004585
 lrwx------ 1 root root 64 juin  18 15:51 47 -> socket:[44004585]
 ```
 
+Voir aussi : [Mise en oeuvre du Bluetooth](http://tvaira.free.fr/projets/activites/activite-bluetooth.html)
+
 ## Appairer un appareil
 
 On utilise `bluetoothctl` :
@@ -232,6 +257,7 @@ Pour cela, on va :
 - déclarer un agent
 - mettre le contrôleur sous tension
 - chercher les appareils à proximité
+- si besoin faire confiance à l'appareil
 - appairer et connecter un appareil
 
 ```sh
@@ -241,6 +267,9 @@ Agent registered
 Changing power on succeeded
 [bluetooth]# scan on
 Discovery started
+[NEW] Device xx:xx:xx:xx:xx:xx nnnnnnnn
+...
+[bluetooth]# trust xx:xx:xx:xx:xx:xx
 ...
 [bluetooth]# pair xx:xx:xx:xx:xx:xx
 ...
@@ -282,6 +311,8 @@ $ dbus-send --system --type=method_call --print-reply --dest=org.bluez /org/blue
 variant       boolean true
 ```
 
+Voir aussi : [Mise en oeuvre du Bluetooth](http://tvaira.free.fr/projets/activites/activite-bluetooth.html)
+
 ## Notions de Bluetooth
 
 Bluetooth est une norme de communications permettant l’échange bidirectionnel de données à très courte distance en utilisant des ondes radio UHF sur une bande de fréquence de 2,4 GHz.
@@ -301,6 +332,8 @@ Le service `RFCOMM` (_Radio frequency communication_) est basé sur les spécifi
 Un profil correspond à une spécification fonctionnelle d’un usage particulier. Les profils peuvent également correspondre à différents types de périphériques. Les profils ont pour but d’assurer une interopérabilité entre tous les appareils Bluetooth. Ils définissent notamment la manière d’implémenter un usage défini et les protocoles spécifiques à utiliser.
 
 Afin d’échanger des données, les appareils doivent être appairés. L’appairage se fait en lançant la découverte à partir d’un appareil et en échangeant un code.
+
+Voir aussi : [Mise en oeuvre du Bluetooth](http://tvaira.free.fr/projets/activites/activite-bluetooth.html)
 
 ## Notions de socket
 
@@ -326,7 +359,7 @@ Les élements à retenir sont :
 
 > Les communications serveur-serveur ou client-client ne sont donc pas possibles. Il en ressort aussi que l'algorithme d'un processus serveur est différent de celui d'un processus client.
 
-### Créer un(e) socket
+## Créer un(e) socket
 
 Pour dialoguer, chaque processus devra préalablement créer un(e) socket de communication en indiquant :
 
@@ -544,6 +577,162 @@ Connecté au serveur : 84:0D:8E:37:84:1E
 Message Hello world !
  envoyé avec succès
 ...
-
 ```
 
+## Exemples client/serveur
+
+### C/C++
+
+Fabriquer les programmes d'exemple en version :
+
+```sh
+$ cd client-serveur/
+$ make
+g++ -std=c++11 -Wall  -c  client-bluetooth.cpp -o client-bluetooth.o
+g++ -o client-bluetooth.out client-bluetooth.o -lbluetooth
+g++ -std=c++11 -Wall  -c  serveur-bluetooth.cpp -o serveur-bluetooth.o
+g++ -o serveur-bluetooth.out serveur-bluetooth.o -lbluetooth
+$ ls -l *.out
+-rwxrwxr-x 1 tv tv 17896 juin  21 16:20 client-bluetooth.out
+-rwxrwxr-x 1 tv tv 27096 juin  21 16:20 serveur-bluetooth.out
+```
+
+Tests :
+
+- démarrer le serveur dans un terminal
+
+```sh
+$ ./serveur-bluetooth.out
+Enregistrement UUID 01110000-0010-0000-8000-0080fb349b5f : ok !
+Attente de demande de connexion ...
+```
+
+- démarrer maintenant le client dans un autre terminal
+
+```sh
+$ ./client-bluetooth.out B8:27:EB:B1:1A:12
+Connexion au serveur : B8:27:EB:B1:1A:12 ...
+Connecté au serveur : B8:27:EB:B1:1A:12
+Message Hello world !
+ envoyé avec succès
+Message ok
+ reçu avec succès
+```
+
+- dans le terminal du serveur
+
+```sh
+Enregistrement UUID 01110000-0010-0000-8000-0080fb349b5f : ok !
+Attente de demande de connexion ...
+Adresse MAC client : 00:1A:7D:DA:71:13
+Message Hello world !
+ reçu avec succès
+Message ok
+ envoyé avec succès
+```
+
+Nettoyage :
+
+```sh
+$ make clean
+```
+
+### Qt
+
+Pour utiliser l’API Qt Bluetooth dans une application, il faut commencer par ajouter l’option de configuration suivante à le fichier de projet `.pro` :
+
+```
+QT += bluetooth
+```
+
+Voir : [Mise en oeuvre du Bluetooth avec Qt](http://tvaira.free.fr/projets/activites/activite-bluetooth.html#qt-et-bluetooth)
+
+Fabriquer les programmes d'exemple en version _debug_ :
+
+```sh
+$ cd qt
+$ qmake serveur-bluetooth.pro CONFIG+=debug
+$ make
+$ qmake client-bluetooth.pro CONFIG+=debug
+$ make
+$ ls -l *.out
+-rwxrwxr-x 1 tv tv 1285744 juin  21 09:41 client-bluetooth.out
+-rwxrwxr-x 1 tv tv 1228032 juin  21 07:06 serveur-bluetooth.out
+```
+
+Tests :
+
+- démarrer le serveur dans un terminal
+
+```sh
+$ ./serveur-bluetooth.out
+ServeurBluetooth::ServeurBluetooth(QObject*)
+void ServeurBluetooth::activerBluetooth()
+void ServeurBluetooth::demarrer()
+```
+
+- démarrer maintenant le client dans un autre terminal
+
+```sh
+$ ./client-bluetooth.out B8:27:EB:B1:1A:12
+ClientBluetooth::ClientBluetooth(QObject*)
+void ClientBluetooth::activerBluetooth()
+qt.bluetooth.bluez: Missing CAP_NET_ADMIN permission. Cannot determine whether a found address is of random or public type.
+void ClientBluetooth::enregistrerAppareil(QString) QBluetoothSocket(0x56482c9d2080) "B8:27:EB:B1:1A:12"
+void ClientBluetooth::connecter(QString) QBluetoothSocket(0x56482c9d2080) "B8:27:EB:B1:1A:12" QBluetoothSocket::UnconnectedState
+void ClientBluetooth::lireChangementEtatSocket(QBluetoothSocket::SocketState) QBluetoothSocket(0x56482c9d2080) etat QBluetoothSocket::ConnectingState
+void ClientBluetooth::lireChangementEtatSocket(QBluetoothSocket::SocketState) QBluetoothSocket(0x56482c9d2080) etat QBluetoothSocket::ConnectedState
+void ClientBluetooth::gererConnexion() QBluetoothSocket(0x56482c9d2080) "B8:27:EB:B1:1A:12" QBluetoothSocket::ConnectedState
+void ClientBluetooth::lireDonneesSocket() "raspberrypi" "B8:27:EB:B1:1A:12"
+void ClientBluetooth::lireDonneesSocket() "ok\r\n"
+^C
+```
+
+- dans le terminal du serveur
+
+```sh
+ServeurBluetooth::ServeurBluetooth(QObject*)
+void ServeurBluetooth::activerBluetooth()
+void ServeurBluetooth::demarrer()
+void ServeurBluetooth::gererNouveauClient() nouveau client ? QBluetoothSocket(0xf0148) "sedatech" "00:1A:7D:DA:71:13"
+void ServeurBluetooth::gererNouveauClient() nouveau client ! QBluetoothSocket(0xf0148) "sedatech" "00:1A:7D:DA:71:13"
+void ServeurBluetooth::lireDonneesSocket() "sedatech" "00:1A:7D:DA:71:13"
+void ServeurBluetooth::lireDonneesSocket() "Hello world !\n"
+qt.bluetooth.bluez: void QBluetoothSocketPrivate::_q_readNotify() 10 error: -1 "Connexion ré-initialisée par le correspondant"
+void ServeurBluetooth::lireChangementEtatSocket(QBluetoothSocket::SocketState) QBluetoothSocket(0xf0148) etat QBluetoothSocket::ClosingState
+void ServeurBluetooth::lireChangementEtatSocket(QBluetoothSocket::SocketState) QBluetoothSocket(0xf0148) etat QBluetoothSocket::UnconnectedState
+void ServeurBluetooth::deconnecterSocket() QBluetoothSocket(0xf0148) "00:1A:7D:DA:71:13" QBluetoothSocket::UnconnectedState
+void ServeurBluetooth::deconnecterSocket() "00:1A:7D:DA:71:13" remove 1
+```
+
+Nettoyage :
+
+```sh
+$ qmake serveur-bluetooth.pro CONFIG+=debug
+$ make distclean
+rm -f moc_serveur-bluetooth.cpp
+rm -f serveur-bluetooth.o test-serveur-bluetooth.o moc_serveur-bluetooth.o
+rm -f *~ core *.core
+rm -f serveur-bluetooth.out
+rm -f .qmake.stash
+rm -f Makefile
+
+$ qmake client-bluetooth.pro CONFIG+=debug
+$ make distclean
+rm -f moc_client-bluetooth.cpp
+rm -f client-bluetooth.o test-client-bluetooth.o moc_client-bluetooth.o
+rm -f *~ core *.core
+rm -f client-bluetooth.out
+rm -f .qmake.stash
+rm -f Makefile
+```
+
+## Voir aussi
+
+- [Bluetooth](http://tvaira.free.fr/projets/activites/activite-bluetooth.html)
+- [Bluetooth LE](http://tvaira.free.fr/bts-sn/activites/activite-ble/bluetooth-ble.html)
+  - [Bluetooth LE avec Qt](http://tvaira.free.fr/bts-sn/activites/activite-ble/activite-ble-qt.html)
+  - [Bluetooth LE avec un ESP32](http://tvaira.free.fr/bts-sn/activites/activite-ble/activite-ble-esp32.html)
+- [Bluetooth avec Android](http://tvaira.free.fr/dev/android/android-4.html)
+
+©️ Thierry VAIRA <<thierry.vaira@gmail.com>> - LaSalle Avignon - 2022
