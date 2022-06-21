@@ -407,8 +407,10 @@ typedef struct {
 
 Le numéro de canal (_channel_) fait office de numéro de port. Les protocoles de transport Bluetooth ont été conçus avec beaucoup moins de numéros de port disponibles, ce qui signifie qu'il y a un risque qu'un numéro de port arbitraire (choisi au moment de la conception) soit déjà utilisé (_bind: Address already in use_). `L2CAP` compte environ 15 000 numéros de port non réservés mais `RFCOMM` n'en a que 30.
 
-RFCOMM 	channel 	none 	1-30
-L2CAP 	PSM 	odd numbered 1-4095 	odd numbered 4097 - 32765
+| protocol | terminology | reserved/well-known ports | dynamically assigned ports |
+| -------- | ------------- | --------------------------- | ---------------------------- |
+| RFCOMM   | channel     | none                      | 1-30                       |
+| L2CAP    | PSM         | odd numbered 1-4095       | odd numbered 4097 - 32765  |
 
 > Une solution à ce problème est le SDP (_Service Discovery Protocol_). Au lieu de convenir d'un port à utiliser au moment de la conception de l'application, l'approche Bluetooth consiste à attribuer des ports au moment de l'exécution et à suivre un modèle de publication-abonnement.
 
@@ -448,12 +450,6 @@ Pour dialoguer, les processus envoient des donnes (appel `write()`) et/ou recoiv
 
 Les sockets étant des ressources systèmes, il faut obligatoirement les libérer avec l'appel `close()`.
 
-Exemple de processus serveur mono-client :
-
-```cpp
-
-```
-
 ### Côté client
 
 Principe :
@@ -467,117 +463,6 @@ Principe :
 - Si le serveur accepte sa demande de connexion, les deux processus pourront s'échanger des données avec les appels `read()` et `write()`.
 
 - Les sockets étant des ressources systèmes, il faut obligatoirement les libérer avec l'appel `close()`.
-
-Exemple de processus client :
-
-```cpp
-#include <iostream>
-#include <cstdio>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/rfcomm.h>
-
-int main(int argc, char** argv)
-{
-    struct sockaddr_rc adaptateurLocalBluetooth = { 0 }; /* adaptateur local bluetooth */
-    struct sockaddr_rc adatateurDistantBluetooth = { 0 }; /* le serveur bluetooth */
-    int         socketServeur;
-    int         retour;
-    char        buffer[1024] = { 0 };
-    const char* adresseMacDistante = "84:0D:8E:37:84:1E"; /* par exemple un ESP32 */
-    uint8_t port = 1;
-
-    // Crée une socket pour se connecter à un serveur
-    socketServeur = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
-
-    // Prépare les paramètres de connexion
-    adatateurDistantBluetooth.rc_family  = AF_BLUETOOTH;
-    adatateurDistantBluetooth.rc_channel = (uint8_t)htobs(port);
-    str2ba(adresseMacDistante, &adatateurDistantBluetooth.rc_bdaddr);
-
-    // Demande de connexion vers un serveur
-    retour = connect(socketServeur,
-                     (struct sockaddr*)&adatateurDistantBluetooth,
-                     sizeof(adatateurDistantBluetooth));
-
-    if(retour)
-    {
-        perror("socket");
-        return 1;
-    }
-
-    // Connecté
-    std::cout << "Connecté au serveur : " << adresseMacDistante << std::endl;
-
-    // Dialogue
-    sprintf(buffer, "Hello world !\n");
-
-    int nbEcrits = write(socketServeur, buffer, strlen(buffer));
-    switch(nbEcrits)
-    {
-        case -1: /* une erreur ! */
-            perror("write");
-            close(socketServeur);
-            return 2;
-        case 0: /* la socket est fermée */
-            std::cerr << "La socket a été fermée par le serveur !\n";
-            close(socketServeur);
-            return 0;
-        default: /* envoi de n octets */
-            std::cout << "Message " << buffer << " envoyé avec succès"
-                      << std::endl;
-    }
-
-    int nbLus = read(socketServeur, buffer, sizeof(buffer));
-    switch(nbLus)
-    {
-        case -1: /* une erreur ! */
-            perror("read");
-            close(socketServeur);
-            return 3;
-        case 0: /* la socket est fermée */
-            std::cerr << "La socket a été fermée par le serveur !\n";
-            close(socketServeur);
-            return 0;
-        default: /* réception de n octets */
-            std::cout << "Message " << buffer << " reçu avec succès"
-                      << std::endl;
-    }
-
-    // Ferme la socket
-    close(socketServeur);
-
-    return 0;
-}
-```
-
-Test :
-
-```
-$ sdptool browse
-Inquiring ...
-Browsing 84:0D:8E:37:84:1E ...
-Service Name: ESP32SPP
-Service RecHandle: 0x10000
-Service Class ID List:
-  "Serial Port" (0x1101)
-Protocol Descriptor List:
-  "L2CAP" (0x0100)
-  "RFCOMM" (0x0003)
-    Channel: 1
-Profile Descriptor List:
-  "Serial Port" (0x1101)
-    Version: 0x0102
-
-$ g++ client-bluetooth.cpp -lbluetooth -o client-bluetooth
-
-$ ./client-bluetooth
-Connecté au serveur : 84:0D:8E:37:84:1E
-Message Hello world !
- envoyé avec succès
-...
-```
 
 ## Exemples client/serveur
 
